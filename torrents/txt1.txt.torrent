@@ -1,0 +1,12 @@
+{
+    "id": "c091f0e0eda916b94caa7ca5f46d8216",
+    "tracker": "localhost",
+    "puertoTracker": 5000,
+    "pieces": 1,
+    "lastPiece": 0,
+    "name": "txt1.txt",
+    "filepath": "/home/mc1/Documentos/SD/archivos/txt1.txt",
+    "checksum": [
+        "7a9b4e9ebc776aa851be6f2c5582b2f1"
+    ]
+}

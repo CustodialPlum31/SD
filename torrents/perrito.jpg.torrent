@@ -1,0 +1,12 @@
+{
+    "id": "7bc3c08cf707ed8bbbb52129977eb2dd",
+    "tracker": "localhost",
+    "puertoTracker": 5000,
+    "pieces": 1,
+    "lastPiece": 0,
+    "name": "perrito.jpg",
+    "filepath": "/home/mc1/Documentos/SD/archivos/perrito.jpg",
+    "checksum": [
+        "980d2efa9ead0c1459908bdbd662d319"
+    ]
+}

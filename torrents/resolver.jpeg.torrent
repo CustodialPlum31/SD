@@ -1,0 +1,12 @@
+{
+    "id": "0f38070906dea8f7035990cddd8c2cca",
+    "tracker": "localhost",
+    "puertoTracker": 5000,
+    "pieces": 1,
+    "lastPiece": 0,
+    "name": "resolver.jpeg",
+    "filepath": "/home/mc1/Documentos/SD/archivos/resolver.jpeg",
+    "checksum": [
+        "c5052c585ecf5580434c4c69e5a1978a"
+    ]
+}
