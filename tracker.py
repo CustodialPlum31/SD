@@ -2,41 +2,40 @@ import socket
 import threading
 import json
 
-peers_db = {}
+peers = {}
 
 def handle_client(conn, addr):
-    try:
-        data = conn.recv(1024)
-        if data:
-            request = json.loads(data.decode())
-            action = request.get("action")
+    data = conn.recv(1024).decode()
+    request = json.loads(data)
+    action = request.get('action')
 
-            if action == "register":
-                torrent_id = request.get("torrent_id")
-                ip = request.get("ip")
-                port = request.get("port")
-                if torrent_id in peers_db:
-                    peers_db[torrent_id].append((ip, port))
-                else:
-                    peers_db[torrent_id] = [(ip, port)]
-                response = {"status": "success", "message": "Peer registrado"}
-                conn.send(json.dumps(response).encode())
-            
-            elif action == "get_peers":
-                torrent_id = request.get("torrent_id")
-                peers = peers_db.get(torrent_id, [])
-                response = {"status": "success", "peers": peers}
-                conn.send(json.dumps(response).encode())
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        conn.close()
+    if action == 'register':
+        torrent_id = request['torrent_id']
+        client_ip = request['client_ip']
+        client_port = request['client_port']
+        
+        if torrent_id not in peers:
+            peers[torrent_id] = []
+        
+        peer_info = (client_ip, client_port)
+        if peer_info not in peers[torrent_id]:
+            peers[torrent_id].append(peer_info)
+        
+        response = {'status': 'success', 'message': 'Peer registrado'}
+        conn.sendall(json.dumps(response).encode())
 
-def start_tracker(server_ip, server_port):
+    elif action == 'get_peers':
+        torrent_id = request['torrent_id']
+        response = {'peers': peers.get(torrent_id, [])}
+        conn.sendall(json.dumps(response).encode())
+
+    conn.close()
+
+def start_tracker(ip, port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((server_ip, server_port))
+    server.bind((ip, port))
     server.listen(5)
-    print(f"Tracker iniciado en {server_ip}:{server_port}")
+    print(f"Tracker iniciado en {ip}:{port}")
 
     while True:
         conn, addr = server.accept()

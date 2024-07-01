@@ -72,7 +72,7 @@ if __name__ == "__main__":
         torrent_id = torrent_info['id']
         num_pieces = torrent_info['pieces']
 
-        threading.Thread(target=start_client, args=('127.0.0.1', 6883)).start()
+        threading.Thread(target=start_client, args=('127.0.0.1', 6885)).start()
 
         response = register_torrent('127.0.0.1', 6881, torrent_id, '127.0.0.1', 6883)
         print(response)
