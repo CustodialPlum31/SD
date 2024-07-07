@@ -4,42 +4,35 @@ import json
 
 peers = {}
 
-def handle_client(conn, addr):
-    data = conn.recv(1024).decode()
-    request = json.loads(data)
+def handle_client(client_socket):
+    request = json.loads(client_socket.recv(1024).decode('utf-8'))
     action = request.get('action')
+    torrent_id = request.get('torrent_id')
 
     if action == 'register':
-        torrent_id = request['torrent_id']
-        client_ip = request['client_ip']
-        client_port = request['client_port']
-        
+        ip = request.get('ip')
+        port = request.get('port')
         if torrent_id not in peers:
             peers[torrent_id] = []
-        
-        peer_info = (client_ip, client_port)
-        if peer_info not in peers[torrent_id]:
-            peers[torrent_id].append(peer_info)
-        
+        peers[torrent_id].append((ip, port))
         response = {'status': 'success', 'message': 'Peer registrado'}
-        conn.sendall(json.dumps(response).encode())
-
     elif action == 'get_peers':
-        torrent_id = request['torrent_id']
-        response = {'peers': peers.get(torrent_id, [])}
-        conn.sendall(json.dumps(response).encode())
+        response = peers.get(torrent_id, [])
+    else:
+        response = {'status': 'error', 'message': 'Acción no válida'}
 
-    conn.close()
+    client_socket.send(json.dumps(response).encode('utf-8'))
+    client_socket.close()
 
-def start_tracker(ip, port):
+def start_tracker(server_ip, server_port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((ip, port))
+    server.bind((server_ip, server_port))
     server.listen(5)
-    print(f"Tracker iniciado en {ip}:{port}")
+    print(f"Tracker escuchando en {server_ip}:{server_port}")
 
     while True:
-        conn, addr = server.accept()
-        threading.Thread(target=handle_client, args=(conn, addr)).start()
+        client_socket, addr = server.accept()
+        threading.Thread(target=handle_client, args=(client_socket,)).start()
 
 if __name__ == "__main__":
     start_tracker('127.0.0.1', 6881)

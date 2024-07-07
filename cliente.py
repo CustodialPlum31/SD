@@ -1,82 +1,117 @@
 import socket
 import threading
 import json
-import time
+import os
 
-def select_torrent_file():
-    # Implementa la lógica para seleccionar un archivo .torrent
-    return "ruta/al/archivo.torrent"
+piece_size = 1024
 
-def load_torrent_info(path):
-    # Implementa la lógica para cargar la información del archivo .torrent
-    return {
-        'id': 'ejemplo-torrent-id',
-        'pieces': 5
+if not os.path.exists('descargas'):
+    os.makedirs('descargas')
+
+def cargar_torrent(file_path):
+    with open(file_path, 'r') as f:
+        return json.load(f)
+
+def seleccionar_archivo():
+    torrents = os.listdir('torrents')
+    print("Archivos torrent disponibles:")
+    for i, torrent in enumerate(torrents):
+        print(f"{i + 1}. {torrent}")
+    seleccion = int(input("Selecciona un archivo torrent (número): "))
+    return os.path.join('torrents', torrents[seleccion - 1])
+
+def registrar_torrent(tracker_ip, tracker_port, torrent_id, client_ip, client_port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((tracker_ip, tracker_port))
+    request = {
+        'action': 'register',
+        'torrent_id': torrent_id,
+        'ip': client_ip,
+        'port': client_port
     }
+    s.send(json.dumps(request).encode('utf-8'))
+    response = s.recv(1024).decode('utf-8')
+    s.close()
+    return json.loads(response)
 
-# Peers simulados para cada cliente (pueden ser diferentes puertos en la misma IP)
-SIMULATED_PEERS = [('127.0.0.1', 6884), ('127.0.0.1', 6885)]
+def obtener_peers(tracker_ip, tracker_port, torrent_id):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((tracker_ip, tracker_port))
+    request = {
+        'action': 'get_peers',
+        'torrent_id': torrent_id
+    }
+    s.send(json.dumps(request).encode('utf-8'))
+    response = s.recv(1024).decode('utf-8')
+    s.close()
+    return json.loads(response)
 
-def register_torrent(tracker_ip, tracker_port, torrent_id, client_ip, client_port):
-    # Simulamos el registro exitoso en el tracker
-    response = {'status': 'success', 'message': 'Peer registrado'}
-    return response
-
-def get_peers(tracker_ip, tracker_port, torrent_id):
-    # Simulamos obtener la lista de peers del tracker
-    return SIMULATED_PEERS
-
-def handle_request(conn):
-    data = conn.recv(1024).decode()
-    request = json.loads(data)
-    if request['action'] == 'get_piece':
-        index = request['index']
-        # Aquí puedes simular la respuesta con datos de la pieza
-        piece_data = f"Datos del pedazo {index}".encode()
-        conn.sendall(piece_data)
-    conn.close()
-
-def start_client(ip, port):
+def iniciar_cliente(client_ip, client_port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((ip, port))
+    server.bind((client_ip, client_port))
     server.listen(5)
-    print(f"Cliente escuchando en {ip}:{port}")
+    print(f"Cliente escuchando en {client_ip}:{client_port}")
+
+    def handle_peer(conn, addr):
+        piece_index = conn.recv(1024).decode('utf-8')
+        file_path = f"descargas/{torrent_id}"
+
+        if not os.path.exists(file_path):
+            with open(file_path, "wb") as f:
+                f.write(b"\0" * (num_pieces * piece_size))  # Crear un archivo vacío con el tamaño total
+
+        with open(file_path, "rb") as f:
+            f.seek(int(piece_index) * piece_size)
+            piece_data = f.read(piece_size)
+        conn.send(piece_data)
+        conn.close()
 
     while True:
         conn, addr = server.accept()
-        threading.Thread(target=handle_request, args=(conn,)).start()
+        threading.Thread(target=handle_peer, args=(conn, addr)).start()
 
-def download_file(torrent_id, tracker_ip, tracker_port, client_ip, client_port, num_pieces):
-    print("Obteniendo peers simulados...")
-    peers_list = get_peers(tracker_ip, tracker_port, torrent_id)
-    print("Peers simulados obtenidos:", peers_list)
+def descargar_pedazo(peer_ip, peer_port, piece_index):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((peer_ip, peer_port))
+    s.send(str(piece_index).encode('utf-8'))
+    piece_data = s.recv(piece_size)
+    s.close()
+    return piece_data
 
-    # Descargar desde el primer peer simulado
-    if peers_list:
-        peer_ip, peer_port = peers_list[0]
+def descargar_archivo(torrent_id, tracker_ip, tracker_port, client_ip, client_port, num_pieces):
+    peers = obtener_peers(tracker_ip, tracker_port, torrent_id)
+    for peer in peers:
+        peer_ip, peer_port = peer
         if (peer_ip, peer_port) != (client_ip, client_port):
-            print(f"Conectando con peer simulado: {peer_ip}:{peer_port}")
+            print(f"Conectando con peer: {peer}")
             for index in range(num_pieces):
-                print(f"Descargando pedazo {index} desde {peer_ip}:{peer_port}")
-                # Simulación de descarga de pedazo
-                time.sleep(1)  # Simulación de tiempo de descarga
-                print(f"Pedazo {index} descargado.")
-            print("Archivo descargado completamente.")
-        else:
-            print(f"Saltando el peer simulado {peer_ip}:{peer_port} porque es el mismo cliente.")
+                piece = descargar_pedazo(peer_ip, peer_port, index)
+                with open(f"descargas/{torrent_id}", "r+b") as f:
+                    f.seek(index * piece_size)
+                    f.write(piece)
+            break
 
 if __name__ == "__main__":
-    torrent_path = select_torrent_file()
+    # Seleccionar archivo torrent
+    torrent_path = seleccionar_archivo()
     if torrent_path:
-        torrent_info = load_torrent_info(torrent_path)
-        torrent_id = torrent_info['id']
-        num_pieces = torrent_info['pieces']
+        torrent_data = cargar_torrent(torrent_path)
+        torrent_id = torrent_data['id']
+        num_pieces = torrent_data['pieces']
 
-        threading.Thread(target=start_client, args=('127.0.0.1', 6883)).start()
+        # Iniciar servidor del cliente para responder a solicitudes de piezas
+        threading.Thread(target=iniciar_cliente, args=('127.0.0.1', 6885)).start()
 
-        response = register_torrent('127.0.0.1', 6881, torrent_id, '127.0.0.1', 6883)
+        # Registrar torrent en el tracker
+        response = registrar_torrent('127.0.0.1', 6881, torrent_id, '127.0.0.1', 6885)
         print(response)
 
-        download_file(torrent_id, '127.0.0.1', 6881, '127.0.0.1', 6883, num_pieces)
+        # Obtener peers del tracker
+        peers = obtener_peers('127.0.0.1', 6881, torrent_id)
+        print("Obteniendo peers...")
+        print(f"Peers obtenidos: {peers}")
+
+        # Descargar archivo desde los peers
+        descargar_archivo(torrent_id, '127.0.0.1', 6881, '127.0.0.1', 6885, num_pieces)
     else:
         print("No se seleccionó ningún archivo torrent.")
